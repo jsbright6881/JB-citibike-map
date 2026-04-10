@@ -1,1 +1,1 @@
-# JB-citibike-map
+# jb-citibike-map
