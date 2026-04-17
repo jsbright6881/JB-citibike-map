@@ -41,12 +41,7 @@
   .bookmarklet-btn{display:inline-block;padding:8px 18px;background:#111;color:#fff;border-radius:6px;font-family:'Instrument Sans',sans-serif;font-weight:600;font-size:13px;text-decoration:none;cursor:grab;transition:transform 0.15s,box-shadow 0.15s;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
   .bookmarklet-btn:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,0.2);}
   .bookmarklet-hint{font-size:11px;color:#aaa;}
-  .alt-method{margin-top:8px;font-size:11.5px;color:#aaa;}
-  .alt-method a{color:#b5221a;cursor:pointer;text-decoration:none;border-bottom:1px solid #b5221a33;}
-  .copy-steps{display:none;margin-top:10px;padding:12px 16px;background:#faf9f7;border-radius:8px;border:1px solid #e8e6e3;font-size:11.5px;color:#666;line-height:1.7;}
-  .copy-steps.show{display:block;}
-  .copy-btn{display:inline-block;padding:5px 12px;background:#111;color:#fff;border:none;border-radius:4px;font-family:'DM Mono',monospace;font-size:11px;cursor:pointer;margin:4px 0;}
-  .copy-btn.copied{background:#2d8a4e;}
+
 
   .upload-zone{width:100%;border:2px dashed #ccc;border-radius:12px;padding:40px 24px;text-align:center;cursor:pointer;transition:border-color 0.2s,background 0.2s;}
   .upload-zone:hover,.upload-zone.dragover{border-color:#b5221a;background:#fdf8f6;}
@@ -145,18 +140,7 @@
             <a class="bookmarklet-btn" id="bookmarklet-link" href="#">⚡ Get My Rides</a>
             <span class="bookmarklet-hint">← drag to your bookmark bar</span>
           </div>
-          <div class="alt-method">
-            Having trouble dragging? <a onclick="toggleCopySteps()">Copy it manually instead</a>
-          </div>
-          <div class="copy-steps" id="copy-steps">
-            <strong>Manual method:</strong><br>
-            1. Click the button below to copy the bookmarklet code<br>
-            <button class="copy-btn" id="copy-btn" onclick="copyBookmarklet()">Copy bookmarklet code</button><br>
-            2. Right-click your bookmark bar → <strong>"Add page"</strong> or <strong>"Add bookmark"</strong><br>
-            3. Name it <strong>"Get My Rides"</strong><br>
-            4. In the URL field, <strong>paste</strong> what you copied<br>
-            5. Save — done! Click it when you're on the Citi Bike site.
-          </div>
+
         </div>
       </div>
       <div class="step">
@@ -240,8 +224,8 @@
 // ══════════════════════════════════════════════
 // CONFIGURATION — Replace with your Supabase credentials
 // ══════════════════════════════════════════════
-const SUPABASE_URL = 'YOUR_SUPABASE_URL';
-const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_URL = 'https://gjkadomostrysfdtjdpb.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_9KD5vdZnEN1DVasK1e2L4w_TTe1bDbl';
 
 let sb = null;
 try {
@@ -253,19 +237,6 @@ try {
 // ═══ BOOKMARKLET ═══
 const BOOKMARKLET = `javascript:void((async()=>{const e='https://account.citibikenyc.com/bikesharefe-gql';if(!location.href.includes('account.citibikenyc.com')){alert('Navigate to account.citibikenyc.com/ride-history first!');return;}const d=document.createElement('div');d.id='cb-scraper';d.innerHTML='<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:99999;display:flex;align-items:center;justify-content:center"><div style="background:%23fff;border-radius:12px;padding:32px 40px;max-width:400px;text-align:center;font-family:-apple-system,sans-serif"><div style="font-size:20px;font-weight:700;margin-bottom:8px">Extracting Your Rides</div><div id=cb-status style="color:%23666;font-size:14px;margin-bottom:16px">Fetching ride list...</div><div style="background:%23eee;border-radius:6px;height:8px;overflow:hidden"><div id=cb-bar style="background:linear-gradient(90deg,%23d9943e,%238b0000);height:100%25;width:0;transition:width 0.3s"></div></div><div id=cb-count style="margin-top:12px;font-size:24px;font-weight:700;color:%23111">0</div><div style="color:%23999;font-size:11px;letter-spacing:1px;text-transform:uppercase">rides found</div></div></div>';document.body.appendChild(d);const st=document.getElementById('cb-status'),bar=document.getElementById('cb-bar'),cnt=document.getElementById('cb-count');const lq='query GetCurrentUserRides($startTimeMs:String,$memberId:String){config{rideHistory{enabled __typename}comembers{enabled __typename}__typename}member(id:$memberId){id rideHistory(startTimeMs:$startTimeMs){limit hasMore rideHistoryList{rideId startTimeMs endTimeMs price{formatted __typename}duration rideablePhotoUrl rideableName __typename}__typename}__typename}}';const dq='query GetCurrentUserRideDetails($rideId:String!){me{id rideDetails(rideId:$rideId){rideId startTimeMs endTimeMs price{formatted __typename}startAddressStr endAddressStr __typename}__typename}}';async function gql(q,v,retries){retries=retries||3;for(let i=0;i<retries;i++){try{const r=await fetch(e,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({query:q,variables:v})});if(!r.ok){await new Promise(r=>setTimeout(r,3000));continue;}return r.json();}catch(e){await new Promise(r=>setTimeout(r,3000));}}return null;}let all=[],startTimeMs=null,hasMore=true;while(hasMore){const v={};if(startTimeMs)v.startTimeMs=startTimeMs;const data=await gql(lq,v);if(!data){st.textContent='Error fetching rides. Refresh and try again.';return;}const h=data.data%26%26data.data.member%26%26data.data.member.rideHistory;if(!h||!h.rideHistoryList||!h.rideHistoryList.length)break;all=all.concat(h.rideHistoryList);hasMore=h.hasMore;startTimeMs=h.rideHistoryList[h.rideHistoryList.length-1].startTimeMs;cnt.textContent=all.length;bar.style.width='30%25';await new Promise(r=>setTimeout(r,300));}st.textContent='Found '+all.length+' rides. Getting station names...';bar.style.width='35%25';const detailed=[];const BATCH=10;for(let i=0;i<all.length;i+=BATCH){const batch=all.slice(i,i+BATCH);const results=await Promise.all(batch.map(function(r){return gql(dq,{rideId:r.rideId})}));for(let j=0;j<batch.length;j++){const r=all[i+j],det=results[j]%26%26results[j].data%26%26results[j].data.me%26%26results[j].data.me.rideDetails;detailed.push({rideId:r.rideId,startStation:det%26%26det.startAddressStr||'unknown',endStation:det%26%26det.endAddressStr||'unknown',startTimeMs:r.startTimeMs,endTimeMs:r.endTimeMs,duration:r.duration,price:r.price%26%26r.price.formatted});}cnt.textContent=detailed.length;bar.style.width=(35+65*(detailed.length/all.length))+'%25';st.textContent='Station details: '+detailed.length+' / '+all.length;}const blob=new Blob([JSON.stringify(detailed,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='my_citibike_rides.json';a.click();st.textContent='Done! File downloaded.';bar.style.width='100%25';setTimeout(function(){d.remove();},3000);})())`;
 document.getElementById('bookmarklet-link').href = BOOKMARKLET;
-
-// ═══ BOOKMARKLET COPY ALTERNATIVE ═══
-function toggleCopySteps() {
-  document.getElementById('copy-steps').classList.toggle('show');
-}
-function copyBookmarklet() {
-  navigator.clipboard.writeText(BOOKMARKLET).then(() => {
-    const btn = document.getElementById('copy-btn');
-    btn.textContent = 'Copied!';
-    btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = 'Copy bookmarklet code'; btn.classList.remove('copied'); }, 2500);
-  });
-}
 
 // ═══ TABS ═══
 function switchTab(tab) {
