@@ -6,19 +6,30 @@
 <title>Citi Bike Ride Map</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Sans:wght@400;500;600;700&display=swap');
   *{margin:0;padding:0;box-sizing:border-box;}
   body{background:#f4f3f1;font-family:'DM Mono',monospace;overflow-x:hidden;min-height:100vh;}
 
-  /* ═══ LANDING PAGE ═══ */
+  /* ═══ LANDING ═══ */
   #landing{min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:60px 24px 40px;}
-  .hero{text-align:center;max-width:600px;margin-bottom:48px;}
+  .hero{text-align:center;max-width:600px;margin-bottom:40px;}
   .hero h1{font-family:'Instrument Sans',sans-serif;font-weight:700;font-size:clamp(36px,6vw,52px);color:#111;letter-spacing:-1.5px;line-height:1.05;margin-bottom:12px;}
   .hero h1 span{background:linear-gradient(135deg,#d9943e,#8b0000);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
   .hero p{font-size:14px;color:#888;line-height:1.6;max-width:440px;margin:0 auto;}
 
-  .steps{display:flex;flex-direction:column;gap:32px;max-width:560px;width:100%;margin-bottom:48px;}
+  /* ═══ TABS ═══ */
+  .tabs{display:flex;gap:0;max-width:560px;width:100%;margin-bottom:0;border-bottom:2px solid #e0dfdd;}
+  .tab{flex:1;padding:10px 0;text-align:center;font-family:'Instrument Sans',sans-serif;font-weight:600;font-size:13px;color:#aaa;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.2s;}
+  .tab:hover{color:#666;}
+  .tab.active{color:#111;border-bottom-color:#111;}
+
+  .tab-content{display:none;max-width:560px;width:100%;padding-top:32px;}
+  .tab-content.active{display:block;}
+
+  /* ═══ STEPS ═══ */
+  .steps{display:flex;flex-direction:column;gap:28px;margin-bottom:36px;}
   .step{display:flex;gap:20px;align-items:flex-start;}
   .step-num{flex-shrink:0;width:36px;height:36px;border-radius:50%;background:#111;color:#fff;font-family:'Instrument Sans',sans-serif;font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;}
   .step-content h3{font-family:'Instrument Sans',sans-serif;font-weight:600;font-size:16px;color:#111;margin-bottom:4px;}
@@ -26,28 +37,50 @@
   .step-content a{color:#b5221a;text-decoration:none;border-bottom:1px solid #b5221a33;}
   .step-content a:hover{border-bottom-color:#b5221a;}
 
-  .bookmarklet-row{display:flex;align-items:center;gap:12px;margin-top:10px;}
+  .bookmarklet-row{display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap;}
   .bookmarklet-btn{display:inline-block;padding:8px 18px;background:#111;color:#fff;border-radius:6px;font-family:'Instrument Sans',sans-serif;font-weight:600;font-size:13px;text-decoration:none;cursor:grab;transition:transform 0.15s,box-shadow 0.15s;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
   .bookmarklet-btn:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,0.2);}
   .bookmarklet-hint{font-size:11px;color:#aaa;}
+  .alt-method{margin-top:8px;font-size:11.5px;color:#aaa;}
+  .alt-method a{color:#b5221a;cursor:pointer;text-decoration:none;border-bottom:1px solid #b5221a33;}
+  .copy-steps{display:none;margin-top:10px;padding:12px 16px;background:#faf9f7;border-radius:8px;border:1px solid #e8e6e3;font-size:11.5px;color:#666;line-height:1.7;}
+  .copy-steps.show{display:block;}
+  .copy-btn{display:inline-block;padding:5px 12px;background:#111;color:#fff;border:none;border-radius:4px;font-family:'DM Mono',monospace;font-size:11px;cursor:pointer;margin:4px 0;}
+  .copy-btn.copied{background:#2d8a4e;}
 
-  .upload-zone{max-width:560px;width:100%;border:2px dashed #ccc;border-radius:12px;padding:48px 24px;text-align:center;cursor:pointer;transition:border-color 0.2s,background 0.2s;}
+  .upload-zone{width:100%;border:2px dashed #ccc;border-radius:12px;padding:40px 24px;text-align:center;cursor:pointer;transition:border-color 0.2s,background 0.2s;}
   .upload-zone:hover,.upload-zone.dragover{border-color:#b5221a;background:#fdf8f6;}
   .upload-zone svg{margin-bottom:12px;color:#bbb;}
   .upload-zone h3{font-family:'Instrument Sans',sans-serif;font-weight:600;font-size:16px;color:#333;margin-bottom:4px;}
   .upload-zone p{font-size:12px;color:#aaa;}
   .upload-zone input{display:none;}
 
+  /* ═══ LEADERBOARD ═══ */
+  .lb-loading{text-align:center;padding:40px;color:#aaa;font-size:13px;}
+  .lb-empty{text-align:center;padding:40px;color:#bbb;font-size:13px;}
+  .lb-table{width:100%;border-collapse:collapse;}
+  .lb-table th{font-family:'Instrument Sans',sans-serif;font-weight:600;font-size:9px;color:#aaa;letter-spacing:1.5px;text-transform:uppercase;text-align:left;padding:8px 10px;border-bottom:2px solid #e0dfdd;}
+  .lb-table th.right,.lb-table td.right{text-align:right;}
+  .lb-table tr{cursor:pointer;transition:background 0.15s;}
+  .lb-table tr:hover{background:#f0eeeb;}
+  .lb-table td{padding:10px;border-bottom:1px solid #eeedea;font-size:12.5px;color:#444;}
+  .lb-rank{font-family:'Instrument Sans',sans-serif;font-weight:700;font-size:14px;color:#111;width:32px;}
+  .lb-name{font-family:'Instrument Sans',sans-serif;font-weight:600;font-size:14px;color:#111;}
+  .lb-stat{font-family:'DM Mono',monospace;font-size:12px;color:#777;}
+  .lb-view{font-size:11px;color:#b5221a;font-weight:500;}
+
   .disclaimer{max-width:560px;width:100%;margin-top:48px;padding-top:24px;border-top:1px solid #e0dfdd;text-align:center;font-size:10.5px;color:#b0ada8;line-height:1.6;}
 
-  /* ═══ NAME MODAL ═══ */
-  #name-modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;}
-  #name-modal.active{display:flex;}
-  .modal-card{background:#fff;border-radius:12px;padding:32px 36px;max-width:380px;width:90%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.2);}
+  /* ═══ MODALS ═══ */
+  .modal-bg{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;}
+  .modal-bg.active{display:flex;}
+  .modal-card{background:#fff;border-radius:12px;padding:32px 36px;max-width:400px;width:90%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.2);}
   .modal-card h2{font-family:'Instrument Sans',sans-serif;font-weight:700;font-size:20px;color:#111;margin-bottom:6px;}
-  .modal-card p{font-size:12px;color:#999;margin-bottom:20px;}
+  .modal-card p{font-size:12px;color:#999;margin-bottom:20px;line-height:1.5;}
   .modal-card input[type="text"]{width:100%;padding:10px 14px;border:2px solid #e0e0e0;border-radius:8px;font-family:'Instrument Sans',sans-serif;font-size:16px;text-align:center;outline:none;transition:border-color 0.2s;}
   .modal-card input[type="text"]:focus{border-color:#b5221a;}
+  .modal-card label{display:flex;align-items:center;gap:8px;margin-top:14px;justify-content:center;font-size:12px;color:#777;cursor:pointer;}
+  .modal-card label input[type="checkbox"]{width:16px;height:16px;accent-color:#b5221a;cursor:pointer;}
   .modal-card button{margin-top:16px;padding:10px 32px;background:#111;color:#fff;border:none;border-radius:8px;font-family:'Instrument Sans',sans-serif;font-weight:600;font-size:14px;cursor:pointer;transition:background 0.15s;}
   .modal-card button:hover{background:#333;}
 
@@ -60,7 +93,6 @@
   .leaflet-control-zoom a{background:rgba(255,255,255,0.92)!important;color:#333!important;border:1px solid #ccc!important;width:30px!important;height:30px!important;line-height:28px!important;font-size:14px!important;border-radius:2px!important;}
 
   #map-overlay{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1000;pointer-events:none;}
-
   .panel{background:rgba(255,255,255,0.93);border-radius:6px;box-shadow:0 1px 8px rgba(0,0,0,0.12);backdrop-filter:blur(8px);}
 
   #title-panel{position:absolute;top:16px;left:16px;padding:12px 16px;}
@@ -79,69 +111,97 @@
 
   #actions{position:absolute;top:16px;right:16px;display:flex;gap:8px;pointer-events:auto;}
   #actions button{padding:7px 14px;border:none;border-radius:5px;font-family:'DM Mono',monospace;font-size:11px;cursor:pointer;transition:all 0.15s;}
-  .btn-download{background:#111;color:#fff;}
-  .btn-download:hover{background:#333;}
-  .btn-back{background:rgba(255,255,255,0.9);color:#555;border:1px solid #ddd!important;}
-  .btn-back:hover{background:#fff;color:#111;}
+  .btn-primary{background:#111;color:#fff;}
+  .btn-primary:hover{background:#333;}
+  .btn-secondary{background:rgba(255,255,255,0.9);color:#555;border:1px solid #ddd!important;}
+  .btn-secondary:hover{background:#fff;color:#111;}
 
   #progress-bar{position:absolute;top:0;left:0;height:3px;background:linear-gradient(90deg,#d9943e,#8b0000);transition:width 0.3s;z-index:2000;}
 </style>
 </head>
 <body>
 
-<!-- ═══════════ LANDING PAGE ═══════════ -->
+<!-- ═══════════ LANDING ═══════════ -->
 <div id="landing">
   <div class="hero">
     <h1>Map Your <span>Citi Bike</span> Rides</h1>
     <p>See every ride you've ever taken, visualized on a map of NYC. The more you ride a route, the brighter it glows.</p>
   </div>
 
-  <div class="steps">
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-content">
-        <h3>Grab the bookmarklet</h3>
-        <p>Drag this button to your browser's bookmark bar:</p>
-        <div class="bookmarklet-row">
-          <a class="bookmarklet-btn" id="bookmarklet-link" href="#">⚡ Get My Rides</a>
-          <span class="bookmarklet-hint">← drag this to your bookmark bar</span>
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('create')">Create Your Map</div>
+    <div class="tab" onclick="switchTab('leaderboard')">Leaderboard</div>
+  </div>
+
+  <!-- CREATE TAB -->
+  <div class="tab-content active" id="tab-create">
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h3>Grab the bookmarklet</h3>
+          <p>Drag this button to your browser's bookmark bar:</p>
+          <div class="bookmarklet-row">
+            <a class="bookmarklet-btn" id="bookmarklet-link" href="#">⚡ Get My Rides</a>
+            <span class="bookmarklet-hint">← drag to your bookmark bar</span>
+          </div>
+          <div class="alt-method">
+            Having trouble dragging? <a onclick="toggleCopySteps()">Copy it manually instead</a>
+          </div>
+          <div class="copy-steps" id="copy-steps">
+            <strong>Manual method:</strong><br>
+            1. Click the button below to copy the bookmarklet code<br>
+            <button class="copy-btn" id="copy-btn" onclick="copyBookmarklet()">Copy bookmarklet code</button><br>
+            2. Right-click your bookmark bar → <strong>"Add page"</strong> or <strong>"Add bookmark"</strong><br>
+            3. Name it <strong>"Get My Rides"</strong><br>
+            4. In the URL field, <strong>paste</strong> what you copied<br>
+            5. Save — done! Click it when you're on the Citi Bike site.
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h3>Run it on Citi Bike</h3>
+          <p>Go to <a href="https://account.citibikenyc.com/ride-history" target="_blank">account.citibikenyc.com/ride-history</a>, log in, then click the bookmarklet. It'll extract all your rides and download a JSON file. This can take a few minutes if you have thousands of rides.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h3>Upload your file below</h3>
+          <p>Drop the downloaded JSON file here and watch your ride map appear.</p>
         </div>
       </div>
     </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-content">
-        <h3>Run it on Citi Bike</h3>
-        <p>Go to <a href="https://account.citibikenyc.com/ride-history" target="_blank">account.citibikenyc.com/ride-history</a>, log in, then click the bookmarklet. It'll extract all your rides and download a JSON file. This can take a few minutes if you have thousands of rides.</p>
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num">3</div>
-      <div class="step-content">
-        <h3>Upload your file below</h3>
-        <p>Drop the downloaded JSON file here and watch your ride map appear.</p>
-      </div>
+
+    <div class="upload-zone" id="upload-zone">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <h3>Drop your JSON file here</h3>
+      <p>or click to browse</p>
+      <input type="file" id="file-input" accept=".json">
     </div>
   </div>
 
-  <div class="upload-zone" id="upload-zone">
-    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-    <h3>Drop your JSON file here</h3>
-    <p>or click to browse</p>
-    <input type="file" id="file-input" accept=".json">
+  <!-- LEADERBOARD TAB -->
+  <div class="tab-content" id="tab-leaderboard">
+    <div id="lb-container">
+      <div class="lb-loading" id="lb-loading">Loading leaderboard…</div>
+    </div>
   </div>
 
   <div class="disclaimer">
-    This project is not affiliated with, endorsed by, or associated with Citi Bike, Lyft, or any of their subsidiaries. It is an independent, open-source visualization tool. Ride data is processed entirely in your browser and is never uploaded to any server. Use at your own discretion.
+    This project is not affiliated with, endorsed by, or associated with Citi Bike, Lyft, or any of their subsidiaries. It is an independent, open-source visualization tool. Ride data is processed entirely in your browser and is never uploaded to any server unless you opt in to the leaderboard.
   </div>
 </div>
 
 <!-- ═══════════ NAME MODAL ═══════════ -->
-<div id="name-modal">
+<div class="modal-bg" id="name-modal">
   <div class="modal-card">
     <h2>What's your name?</h2>
     <p>This will appear on your map and downloaded file.</p>
     <input type="text" id="name-input" placeholder="e.g. Alex" maxlength="30" autocomplete="off">
+    <label><input type="checkbox" id="leaderboard-optin" checked> Add me to the leaderboard</label>
     <br>
     <button id="name-submit">Show My Map →</button>
   </div>
@@ -157,8 +217,8 @@
       <div class="subtitle" id="map-subtitle"></div>
     </div>
     <div id="actions">
-      <button class="btn-back" onclick="goBack()">← Back</button>
-      <button class="btn-download" onclick="downloadMap()">↓ Download Map</button>
+      <button class="btn-secondary" onclick="goBack()">← Back</button>
+      <button class="btn-primary" onclick="downloadMap()">↓ Download Map</button>
     </div>
     <div id="legend-panel" class="panel">
       <div class="legend-title">Route Frequency</div>
@@ -177,21 +237,55 @@
 </div>
 
 <script>
+// ══════════════════════════════════════════════
+// CONFIGURATION — Replace with your Supabase credentials
+// ══════════════════════════════════════════════
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+let sb = null;
+try {
+  if (SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+} catch(e) { console.log('Supabase not configured yet'); }
+
 // ═══ BOOKMARKLET ═══
 const BOOKMARKLET = `javascript:void((async()=>{const e='https://account.citibikenyc.com/bikesharefe-gql';if(!location.href.includes('account.citibikenyc.com')){alert('Navigate to account.citibikenyc.com/ride-history first!');return;}const d=document.createElement('div');d.id='cb-scraper';d.innerHTML='<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:99999;display:flex;align-items:center;justify-content:center"><div style="background:%23fff;border-radius:12px;padding:32px 40px;max-width:400px;text-align:center;font-family:-apple-system,sans-serif"><div style="font-size:20px;font-weight:700;margin-bottom:8px">Extracting Your Rides</div><div id=cb-status style="color:%23666;font-size:14px;margin-bottom:16px">Fetching ride list...</div><div style="background:%23eee;border-radius:6px;height:8px;overflow:hidden"><div id=cb-bar style="background:linear-gradient(90deg,%23d9943e,%238b0000);height:100%25;width:0;transition:width 0.3s"></div></div><div id=cb-count style="margin-top:12px;font-size:24px;font-weight:700;color:%23111">0</div><div style="color:%23999;font-size:11px;letter-spacing:1px;text-transform:uppercase">rides found</div></div></div>';document.body.appendChild(d);const st=document.getElementById('cb-status'),bar=document.getElementById('cb-bar'),cnt=document.getElementById('cb-count');const lq='query GetCurrentUserRides($startTimeMs:String,$memberId:String){config{rideHistory{enabled __typename}comembers{enabled __typename}__typename}member(id:$memberId){id rideHistory(startTimeMs:$startTimeMs){limit hasMore rideHistoryList{rideId startTimeMs endTimeMs price{formatted __typename}duration rideablePhotoUrl rideableName __typename}__typename}__typename}}';const dq='query GetCurrentUserRideDetails($rideId:String!){me{id rideDetails(rideId:$rideId){rideId startTimeMs endTimeMs price{formatted __typename}startAddressStr endAddressStr __typename}__typename}}';async function gql(q,v,retries){retries=retries||3;for(let i=0;i<retries;i++){try{const r=await fetch(e,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({query:q,variables:v})});if(!r.ok){await new Promise(r=>setTimeout(r,3000));continue;}return r.json();}catch(e){await new Promise(r=>setTimeout(r,3000));}}return null;}let all=[],startTimeMs=null,hasMore=true;while(hasMore){const v={};if(startTimeMs)v.startTimeMs=startTimeMs;const data=await gql(lq,v);if(!data){st.textContent='Error fetching rides. Refresh and try again.';return;}const h=data.data%26%26data.data.member%26%26data.data.member.rideHistory;if(!h||!h.rideHistoryList||!h.rideHistoryList.length)break;all=all.concat(h.rideHistoryList);hasMore=h.hasMore;startTimeMs=h.rideHistoryList[h.rideHistoryList.length-1].startTimeMs;cnt.textContent=all.length;bar.style.width='30%25';await new Promise(r=>setTimeout(r,300));}st.textContent='Found '+all.length+' rides. Getting station names...';bar.style.width='35%25';const detailed=[];const BATCH=10;for(let i=0;i<all.length;i+=BATCH){const batch=all.slice(i,i+BATCH);const results=await Promise.all(batch.map(function(r){return gql(dq,{rideId:r.rideId})}));for(let j=0;j<batch.length;j++){const r=all[i+j],det=results[j]%26%26results[j].data%26%26results[j].data.me%26%26results[j].data.me.rideDetails;detailed.push({rideId:r.rideId,startStation:det%26%26det.startAddressStr||'unknown',endStation:det%26%26det.endAddressStr||'unknown',startTimeMs:r.startTimeMs,endTimeMs:r.endTimeMs,duration:r.duration,price:r.price%26%26r.price.formatted});}cnt.textContent=detailed.length;bar.style.width=(35+65*(detailed.length/all.length))+'%25';st.textContent='Station details: '+detailed.length+' / '+all.length;}const blob=new Blob([JSON.stringify(detailed,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='my_citibike_rides.json';a.click();st.textContent='Done! File downloaded.';bar.style.width='100%25';setTimeout(function(){d.remove();},3000);})())`;
 document.getElementById('bookmarklet-link').href = BOOKMARKLET;
 
+// ═══ BOOKMARKLET COPY ALTERNATIVE ═══
+function toggleCopySteps() {
+  document.getElementById('copy-steps').classList.toggle('show');
+}
+function copyBookmarklet() {
+  navigator.clipboard.writeText(BOOKMARKLET).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy bookmarklet code'; btn.classList.remove('copied'); }, 2500);
+  });
+}
+
+// ═══ TABS ═══
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    t.classList.toggle('active', (tab==='create' && i===0) || (tab==='leaderboard' && i===1));
+  });
+  document.getElementById('tab-create').classList.toggle('active', tab==='create');
+  document.getElementById('tab-leaderboard').classList.toggle('active', tab==='leaderboard');
+  if (tab === 'leaderboard') loadLeaderboard();
+}
+
 // ═══ STATE ═══
 let currentRideData = null;
 let currentName = '';
+let currentStats = null;
 let mapInstance = null;
 
 // ═══ FILE HANDLING ═══
 const uploadZone = document.getElementById('upload-zone');
 const fileInput = document.getElementById('file-input');
-const nameModal = document.getElementById('name-modal');
-const nameInput = document.getElementById('name-input');
-const nameSubmit = document.getElementById('name-submit');
 
 uploadZone.addEventListener('click', () => fileInput.click());
 uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
@@ -212,10 +306,9 @@ function handleFile(file) {
         return;
       }
       currentRideData = data;
-      // Show name modal
-      nameModal.classList.add('active');
-      nameInput.value = '';
-      setTimeout(() => nameInput.focus(), 100);
+      document.getElementById('name-modal').classList.add('active');
+      document.getElementById('name-input').value = '';
+      setTimeout(() => document.getElementById('name-input').focus(), 100);
     } catch(err) {
       alert('Could not parse the file. Make sure it\'s a valid JSON file.');
     }
@@ -223,17 +316,36 @@ function handleFile(file) {
   reader.readAsText(file);
 }
 
-nameSubmit.addEventListener('click', submitName);
-nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitName(); });
+document.getElementById('name-submit').addEventListener('click', submitName);
+document.getElementById('name-input').addEventListener('keydown', e => { if (e.key === 'Enter') submitName(); });
 
-function submitName() {
-  const name = nameInput.value.trim();
+async function submitName() {
+  const name = document.getElementById('name-input').value.trim();
+  const optIn = document.getElementById('leaderboard-optin').checked;
   currentName = name || 'My';
-  nameModal.classList.remove('active');
+  document.getElementById('name-modal').classList.remove('active');
+
+  const stats = processRides(currentRideData);
+  currentStats = stats;
+
+  if (optIn && sb && currentName !== 'My') {
+    try {
+      await sb.from('riders').upsert({
+        name: currentName,
+        total_rides: stats.totalRides,
+        unique_routes: stats.routes.length,
+        unique_stations: stats.stationCount,
+        first_ride: stats.minDate ? stats.minDate.toISOString() : null,
+        last_ride: stats.maxDate ? stats.maxDate.toISOString() : null,
+        routes: stats.routes.map(r => ({s:r.s,e:r.e,c:r.c}))
+      }, { onConflict: 'name' });
+    } catch(e) { console.log('Leaderboard save failed:', e); }
+  }
+
   showMap(currentRideData);
 }
 
-// ═══ MAP RENDERING ═══
+// ═══ MAP HELPERS ═══
 function gs(c) {
   if (c>=50) return {color:'#6b0000',weight:5,opacity:0.92};
   if (c>=11) return {color:'#b5221a',weight:3.5,opacity:0.78};
@@ -259,12 +371,20 @@ async function fr(s,e){
   if(d.code==='Ok'&&d.routes.length)return d.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]);}catch(e){}return null;
 }
 
+function possessive(name) {
+  if (name === 'My') return 'My';
+  return name + (name.endsWith('s') ? "'" : "'s");
+}
+
 function processRides(rides) {
   const valid = rides.filter(r => r.startStation && r.endStation && r.startStation !== 'unknown' && r.endStation !== 'unknown' && r.startStation !== r.endStation);
   const counts = {};
+  const stations = new Set();
   for (const r of valid) {
     const key = [r.startStation, r.endStation].sort().join('|||');
     counts[key] = (counts[key] || 0) + 1;
+    stations.add(r.startStation);
+    stations.add(r.endStation);
   }
   const routes = Object.entries(counts).map(([key, c]) => {
     const [s, e] = key.split('|||');
@@ -274,20 +394,11 @@ function processRides(rides) {
   const times = valid.map(r => parseInt(r.startTimeMs)).filter(t => !isNaN(t));
   const minDate = times.length ? new Date(Math.min(...times)) : null;
   const maxDate = times.length ? new Date(Math.max(...times)) : null;
-  return { routes, totalRides: valid.length, minDate, maxDate };
+  return { routes, totalRides: valid.length, stationCount: stations.size, minDate, maxDate };
 }
 
-async function showMap(rides) {
-  document.getElementById('landing').style.display = 'none';
-  document.getElementById('map-view').style.display = 'block';
-
-  const { routes, totalRides, minDate, maxDate } = processRides(rides);
-  const displayName = currentName === 'My' ? 'My' : currentName + (currentName.endsWith('s') ? "'" : "'s");
-
-  document.getElementById('map-title').textContent = displayName + ' Rides';
-  const fmt = d => d ? d.toLocaleDateString('en-US', {month:'long', year:'numeric'}) : '?';
-  document.getElementById('map-subtitle').textContent = `${totalRides.toLocaleString()} trips — ${fmt(minDate)} to ${fmt(maxDate)}`;
-
+// ═══ RENDER MAP ═══
+async function renderRoutes(routes) {
   const pB = document.getElementById('progress-bar');
   const rC = document.getElementById('route-count');
   const sC = document.getElementById('station-count');
@@ -314,9 +425,8 @@ async function showMap(rides) {
   sC.textContent = ms.size;
   resolved.sort((a,b) => a.c - b.c);
 
-  // Only OSRM-route the top 20 routes for speed
-  const routed = resolved.filter(r => r.c >= 20);
   const straight = resolved.filter(r => r.c < 20);
+  const routed = resolved.filter(r => r.c >= 20);
   let drawn = 0; const total = resolved.length;
 
   for (const r of straight) {
@@ -327,7 +437,6 @@ async function showMap(rides) {
   rC.textContent = drawn;
   pB.style.width = (drawn/total*100)+'%';
 
-  // Fetch all routed paths in one parallel batch
   if (routed.length > 0) {
     const results = await Promise.all(routed.map(r => fr(r.sc, r.ec)));
     for (let j = 0; j < routed.length; j++) {
@@ -336,15 +445,39 @@ async function showMap(rides) {
       drawn++;
     }
   }
-
   rC.textContent = drawn;
   pB.style.width = '100%';
   setTimeout(() => { pB.style.opacity = '0'; pB.style.transition = 'opacity 1s'; }, 1000);
 }
 
-function goBack() {
-  document.getElementById('map-view').style.display = 'none';
-  document.getElementById('landing').style.display = 'flex';
+async function showMap(rides) {
+  document.getElementById('landing').style.display = 'none';
+  document.getElementById('map-view').style.display = 'block';
+
+  const stats = processRides(rides);
+  const dispName = possessive(currentName);
+  document.getElementById('map-title').textContent = dispName + ' Rides';
+  const fmt = d => d ? d.toLocaleDateString('en-US', {month:'long', year:'numeric'}) : '?';
+  document.getElementById('map-subtitle').textContent = `${stats.totalRides.toLocaleString()} trips — ${fmt(stats.minDate)} to ${fmt(stats.maxDate)}`;
+
+  await renderRoutes(stats.routes);
+}
+
+// Show a leaderboard rider's map
+async function showRiderMap(rider) {
+  currentName = rider.name;
+  document.getElementById('landing').style.display = 'none';
+  document.getElementById('map-view').style.display = 'block';
+
+  const dispName = possessive(rider.name);
+  document.getElementById('map-title').textContent = dispName + ' Rides';
+  const fmt = d => d ? new Date(d).toLocaleDateString('en-US', {month:'long', year:'numeric'}) : '?';
+  document.getElementById('map-subtitle').textContent = `${rider.total_rides.toLocaleString()} trips — ${fmt(rider.first_ride)} to ${fmt(rider.last_ride)}`;
+
+  await renderRoutes(rider.routes);
+}
+
+function clearMap() {
   if (mapInstance) { mapInstance.eachLayer(l => { if (l instanceof L.Polyline) mapInstance.removeLayer(l); }); }
   document.getElementById('progress-bar').style.width = '0%';
   document.getElementById('progress-bar').style.opacity = '1';
@@ -352,22 +485,96 @@ function goBack() {
   document.getElementById('station-count').textContent = '0';
 }
 
+function goBack() {
+  document.getElementById('map-view').style.display = 'none';
+  document.getElementById('landing').style.display = 'flex';
+  clearMap();
+}
+
+// ═══ LEADERBOARD ═══
+async function loadLeaderboard() {
+  const container = document.getElementById('lb-container');
+  if (!sb) {
+    container.innerHTML = '<div class="lb-empty">Leaderboard not configured yet. See setup instructions.</div>';
+    return;
+  }
+
+  container.innerHTML = '<div class="lb-loading">Loading leaderboard…</div>';
+
+  try {
+    const { data, error } = await sb.from('riders')
+      .select('name, total_rides, unique_routes, unique_stations, first_ride, last_ride, routes')
+      .order('total_rides', { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      container.innerHTML = '<div class="lb-empty">No riders yet — be the first! Upload your rides and opt in.</div>';
+      return;
+    }
+
+    let html = `<table class="lb-table">
+      <thead><tr>
+        <th>#</th>
+        <th>Rider</th>
+        <th class="right">Rides</th>
+        <th class="right">Routes</th>
+        <th class="right">Stations</th>
+        <th class="right"></th>
+      </tr></thead><tbody>`;
+
+    for (let i = 0; i < data.length; i++) {
+      const r = data[i];
+      html += `<tr onclick='viewRider(${i})'>
+        <td class="lb-rank">${i + 1}</td>
+        <td class="lb-name">${escHtml(r.name)}</td>
+        <td class="lb-stat right">${r.total_rides.toLocaleString()}</td>
+        <td class="lb-stat right">${r.unique_routes}</td>
+        <td class="lb-stat right">${r.unique_stations}</td>
+        <td class="lb-view right">View map →</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    container.innerHTML = html;
+
+    // Store data for viewing
+    window._lbData = data;
+  } catch(e) {
+    container.innerHTML = '<div class="lb-empty">Could not load leaderboard.</div>';
+    console.error(e);
+  }
+}
+
+function viewRider(index) {
+  const rider = window._lbData[index];
+  if (!rider || !rider.routes) return;
+  clearMap();
+  showRiderMap(rider);
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
 // ═══ DOWNLOAD STANDALONE MAP ═══
 function downloadMap() {
-  if (!currentRideData) return;
-  const { routes, totalRides, minDate, maxDate } = processRides(currentRideData);
+  if (!currentRideData && !currentStats) return;
+  const stats = currentStats || processRides(currentRideData);
   const fmt = d => d ? d.toLocaleDateString('en-US',{month:'long',year:'numeric'}) : '?';
-  const subtitle = `${totalRides.toLocaleString()} trips — ${fmt(minDate)} to ${fmt(maxDate)}`;
-  const displayName = currentName === 'My' ? 'My' : currentName + (currentName.endsWith('s') ? "'" : "'s");
-  const routeJSON = JSON.stringify(routes.map(r=>({s:r.s,e:r.e,c:r.c})));
+  const subtitle = `${stats.totalRides.toLocaleString()} trips — ${fmt(stats.minDate)} to ${fmt(stats.maxDate)}`;
+  const dispName = possessive(currentName);
+  const routeJSON = JSON.stringify(stats.routes.map(r=>({s:r.s,e:r.e,c:r.c})));
   const safeName = currentName.toLowerCase().replace(/[^a-z0-9]/g,'_') || 'my';
+  const siteUrl = location.origin;
 
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${displayName} Citi Bike Map</title>
+<title>${dispName} Citi Bike Map</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"><\/script>
 <style>
@@ -400,7 +607,7 @@ body{background:#1a1a1a;font-family:'DM Mono',monospace;overflow:hidden;height:1
 <div id="map"></div>
 <div id="pb" style="width:0%"></div>
 <div id="overlay">
-<div id="tp" class="p"><h1>${displayName} Rides</h1><div class="sub">${subtitle}</div></div>
+<div id="tp" class="p"><h1>${dispName} Rides</h1><div class="sub">${subtitle}</div></div>
 <div id="lp" class="p">
 <div class="lt">Route Frequency</div>
 <div class="li"><div class="ll" style="width:44px;background:#6b0000;height:5px"></div><span class="lb">50+ rides</span></div>
@@ -409,7 +616,7 @@ body{background:#1a1a1a;font-family:'DM Mono',monospace;overflow:hidden;height:1
 <div class="li"><div class="ll" style="width:20px;background:#d9943e;height:1.2px"></div><span class="lb">1 – 2</span></div>
 </div>
 <div id="sp" class="p"><div class="sv" id="rc">0</div><div class="sl">Routes</div><div class="sv" id="sc">0</div><div class="sl">Stations</div></div>
-<div class="made p">Made with <a href="${location.origin}" target="_blank">Citi Bike Ride Map</a></div>
+<div class="made p">Made with <a href="${siteUrl}" target="_blank">Citi Bike Ride Map</a></div>
 </div>
 <script>
 const R=${routeJSON};
