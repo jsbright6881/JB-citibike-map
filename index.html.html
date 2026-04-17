@@ -74,8 +74,6 @@
   .modal-card p{font-size:12px;color:#999;margin-bottom:20px;line-height:1.5;}
   .modal-card input[type="text"]{width:100%;padding:10px 14px;border:2px solid #e0e0e0;border-radius:8px;font-family:'Instrument Sans',sans-serif;font-size:16px;text-align:center;outline:none;transition:border-color 0.2s;}
   .modal-card input[type="text"]:focus{border-color:#b5221a;}
-  .modal-card label{display:flex;align-items:center;gap:8px;margin-top:14px;justify-content:center;font-size:12px;color:#777;cursor:pointer;}
-  .modal-card label input[type="checkbox"]{width:16px;height:16px;accent-color:#b5221a;cursor:pointer;}
   .modal-card button{margin-top:16px;padding:10px 32px;background:#111;color:#fff;border:none;border-radius:8px;font-family:'Instrument Sans',sans-serif;font-weight:600;font-size:14px;cursor:pointer;transition:background 0.15s;}
   .modal-card button:hover{background:#333;}
 
@@ -182,10 +180,8 @@
 <!-- ═══════════ NAME MODAL ═══════════ -->
 <div class="modal-bg" id="name-modal">
   <div class="modal-card">
-    <h2>What's your name?</h2>
-    <p>This will appear on your map and downloaded file.</p>
+    <h2>Choose a display name</h2>
     <input type="text" id="name-input" placeholder="e.g. Alex" maxlength="30" autocomplete="off">
-    <label><input type="checkbox" id="leaderboard-optin" checked> Add me to the leaderboard</label>
     <br>
     <button id="name-submit">Show My Map →</button>
   </div>
@@ -203,6 +199,7 @@
     <div id="actions">
       <button class="btn-secondary" onclick="goBack()">← Back</button>
       <button class="btn-primary" onclick="downloadMap()">↓ Download Map</button>
+      <button class="btn-primary" id="lb-btn" onclick="addToLeaderboard()" style="background:#b5221a;">☆ Add to Leaderboard</button>
     </div>
     <div id="legend-panel" class="panel">
       <div class="legend-title">Route Frequency</div>
@@ -292,28 +289,40 @@ document.getElementById('name-input').addEventListener('keydown', e => { if (e.k
 
 async function submitName() {
   const name = document.getElementById('name-input').value.trim();
-  const optIn = document.getElementById('leaderboard-optin').checked;
   currentName = name || 'My';
   document.getElementById('name-modal').classList.remove('active');
 
   const stats = processRides(currentRideData);
   currentStats = stats;
 
-  if (optIn && sb && currentName !== 'My') {
-    try {
-      await sb.from('riders').upsert({
-        name: currentName,
-        total_rides: stats.totalRides,
-        unique_routes: stats.routes.length,
-        unique_stations: stats.stationCount,
-        first_ride: stats.minDate ? stats.minDate.toISOString() : null,
-        last_ride: stats.maxDate ? stats.maxDate.toISOString() : null,
-        routes: stats.routes.map(r => ({s:r.s,e:r.e,c:r.c}))
-      }, { onConflict: 'name' });
-    } catch(e) { console.log('Leaderboard save failed:', e); }
-  }
-
   showMap(currentRideData);
+}
+
+async function addToLeaderboard() {
+  if (!sb || !currentStats || currentName === 'My') {
+    if (currentName === 'My') alert('Please enter a display name first.');
+    return;
+  }
+  const btn = document.getElementById('lb-btn');
+  btn.textContent = 'Saving…';
+  btn.disabled = true;
+  try {
+    await sb.from('riders').upsert({
+      name: currentName,
+      total_rides: currentStats.totalRides,
+      unique_routes: currentStats.routes.length,
+      unique_stations: currentStats.stationCount,
+      first_ride: currentStats.minDate ? currentStats.minDate.toISOString() : null,
+      last_ride: currentStats.maxDate ? currentStats.maxDate.toISOString() : null,
+      routes: currentStats.routes.map(r => ({s:r.s,e:r.e,c:r.c}))
+    }, { onConflict: 'name' });
+    btn.textContent = '★ On Leaderboard';
+    btn.style.background = '#2d8a4e';
+  } catch(e) {
+    console.log('Leaderboard save failed:', e);
+    btn.textContent = 'Error — try again';
+    btn.disabled = false;
+  }
 }
 
 // ═══ MAP HELPERS ═══
@@ -424,6 +433,8 @@ async function renderRoutes(routes) {
 async function showMap(rides) {
   document.getElementById('landing').style.display = 'none';
   document.getElementById('map-view').style.display = 'block';
+  document.getElementById('lb-btn').style.display = '';
+  document.querySelector('.btn-primary[onclick="downloadMap()"]').style.display = '';
 
   const stats = processRides(rides);
   const dispName = possessive(currentName);
@@ -439,6 +450,8 @@ async function showRiderMap(rider) {
   currentName = rider.name;
   document.getElementById('landing').style.display = 'none';
   document.getElementById('map-view').style.display = 'block';
+  document.getElementById('lb-btn').style.display = 'none';
+  document.querySelector('.btn-primary[onclick="downloadMap()"]').style.display = 'none';
 
   const dispName = possessive(rider.name);
   document.getElementById('map-title').textContent = dispName + ' Rides';
@@ -460,6 +473,10 @@ function goBack() {
   document.getElementById('map-view').style.display = 'none';
   document.getElementById('landing').style.display = 'flex';
   clearMap();
+  const btn = document.getElementById('lb-btn');
+  btn.textContent = '☆ Add to Leaderboard';
+  btn.style.background = '#b5221a';
+  btn.disabled = false;
 }
 
 // ═══ LEADERBOARD ═══
